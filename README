@@ -1,0 +1,137 @@
+CSE-506: Operating Systems HW2 README
+
+
+AUTHOR: Kumar Sourav
+SBU ID: 109597685
+
+
+CONTENTS OF README:
+
+ 1. Mounting U2FS:
+
+
+1. Mounting U2FS
+2. Design Description
+3. Extra Credit Work
+4. Approach for different operations
+5. Files for Submission.
+
+ U2FS can be mounted as follows:
+  
+   1. Run sh install_module.sh (It will make all modules mentioned in Makefile and insert the module into kernel)
+   2. Run mount -t u2fs -o ldir=/left/dir,rdir=/right/dir null /mnt/u2fs
+
+ I have used parsing to get ldir and rdir from the user and mount them accordingly. In general case it should not
+ be a problem to mount the files in the format given in step 2. 
+ 
+ I used following command to mount my Directories: 
+
+ 	mount -t u2fs -o ldir=/usr/src/hw2-ksourav/hw2/test/a,rdir=/usr/src/hw2-ksourav/hw2/test/b null /mnt/u2fs 	
+ 
+  The checks to parse the raw_data from user have been placed in main.c-->u2fs_read_super().
+
+
+2. Design Description:
+
+ Wrapfs mounts one lower directory whereas U2FS mounts two directories. I followed following steps to accomplish
+ this task:
+
+  1. Create two instances of lower_inode, lower_file and lower_path (struct path lower_path[2]) to point to two
+     underlying structures.
+  2. Modified all functions like file_open, revalidate to accomodate the changes for two structures.
+  3. Modified read_super in main.c to mount two directories instead of one.
+  4. Modified lookup, __lookup, iget and interpose according to two directories.
+  5. Modified functions like setattr, create to work for both directories as needed.
+  6. To implement whiteout I copied some code from UNIONFS and tuned it according to U2FS. I placed call for
+     create_whiteout in unlink, which created .wh.name file in LB which masked file in RB.
+  7. To implement Copyup I copied code from UNIONFS from modules sioq.h, sioq.c, copyup.c. For copyup I used
+     create parents followed by __copyup_reg_data to make copyup of the given file in RB to LB before wr performed
+     any write operation on the file.
+ 
+
+  The main challenge in the assignment was to identify the places to make changes rather than to write code.
+
+
+3. Extra Credit Work:
+
+  I did not modify LS becasue I was able to eliminate duplication using Extra Credit.I handled duplicate
+  elimination at Kernel Level. For Extra Credit I have implemented a UNIONFS function filldir in file.c
+  
+  I intercepted the dirent and filldir in readdir function in file.c. By this I was able to eliminate the
+  duplicate files which I didn't wanted to show in the list of files. I used an array which contained all the 
+  files in LB and then I checked the RB files if they exiosted in the array. If they existed in the array then
+  I skipped the call of filldir for the corresponding file which consequently eliminated it from displaying on the
+  console.
+
+  Functions I edited/added for Extra Credit in File.c : u2fs_readdir(), u2fs_filldir()
+  Structures I added for Extra Credit in Wrapfs.h : u2fs_getdents_callback, u2fs_dir_state.
+
+
+4. Approach for different operations:
+
+ The following sections describes the apporach used in various cases.
+
+ 1. File Lookup: For file lookup I have modified the lookup.c. Modification in functions like u2fs_lookup, 
+    __u2fs_lookup, u2fs_interpose, u2fs_iget was needed. I have handled duplicate elimination at the kernel 
+    level using filldir and readdir in file.c. To hide files which have whiteouts I created negative dentry
+    for such files so that they remain masked from display.
+
+ 2. File Creation: For file creation on RB I have not changed the schemantics but for file creation on RB I have
+    used copyup as RB is read only and we cannot write into it. I modified functions like u2fs_write, u2fs_create
+    to handle file creation for RB.
+
+ 3. Modifying Files: Modifying a file in LB works as in wrapfs but modifying a file in RB needs to implement copyup
+    operation. I have placed copyup operation at several places in case user tries to modify the data of the file in RB.
+    File metadata also needs to be set for the same operation.
+
+ 4. File Deletion: File deletion in LB is same as in wrapfs with no interruption but RB is readonly so I implemented
+    whiteout for file deletion in RB. When a file is deleted in RB, create_parents is  called followed by create_whiteout.
+    It creates a mask for the file in RB which hides it from display in ls. 
+
+ 5. Other file operations: For chmod I have changed setattr in inode.c to accomodate changes for both the directory structures.
+    For cat,less commands I have changed u2fs_read in file.c to display contents of both left and right branches. For symlink I 
+    have modified u2fs_symlink and u2fs_readlink in inode.c and for hard link I have modified u2fs_link in inode.c to work for
+    both LB and RB. For cp and mv commands I have made changes in u2fs_rename function in inode.c which accomodated the
+    funtionality of both LB and RB.
+
+
+5. Files for Submission: 
+
+ copyup.c
+ dentry.c
+ file.c
+ inode.c
+ install_module.sh
+ lookup.c
+ main.c
+ Makefile
+ mmap.c
+ README
+ rename.c
+ sioq.c
+ sioq.h
+ super.c
+ utils.h
+ whiteout.c
+ wrapfs.h
+ kernel.config
+
+ From the initial files I got I have added following files to the list:
+
+ copyup.c (contains functions for copyup)
+ rename.c (contains functions for mv and cp command)
+ sioq.c (contains functions used by copyup)
+ sioq.h (contains declarations to be used by other files like sioq.c)
+ utils.h (Self created header file containing important functions common to copyup and whiteout)
+ whiteout.c (contains functions for whiteout)
+
+
+
+
+
+
+
+ 
+
+
+ 
